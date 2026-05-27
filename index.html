@@ -602,9 +602,76 @@ body{
   to{transform:translateY(0);opacity:1}
 }
 .divider{height:1px;background:var(--gray-200);margin:12px 0}
+
+/* ── LOGIN ── */
+#login-overlay{
+  position:fixed;inset:0;z-index:9000;background:#f1f5f9;
+  display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.login-card{
+  background:#fff;border-radius:20px;padding:32px 24px;
+  max-width:380px;width:100%;box-shadow:var(--shadow-lg);
+}
+.user-btn{
+  border:2px solid var(--gray-200);border-radius:12px;
+  padding:12px 6px;cursor:pointer;background:#fff;
+  transition:all .15s;text-align:center;
+  font-size:.78rem;font-weight:600;color:var(--gray-700);
+  font-family:inherit;width:100%;
+}
+.user-btn:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.user-avatar{
+  width:38px;height:38px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;margin:0 auto 6px;
+}
+.pin-input{
+  width:100%;border:2px solid var(--gray-200);border-radius:10px;
+  padding:13px;font-size:1.5rem;letter-spacing:.6em;
+  text-align:center;outline:none;font-family:inherit;
+  transition:border-color .15s;
+}
+.pin-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(26,86,219,.1)}
+/* ── SYNC INDICATOR ── */
+.sync-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--gray-300);margin-right:5px;vertical-align:middle;
+  transition:background .3s;
+}
+.sync-dot.syncing{background:#f59e0b;animation:pulse 1s infinite}
+.sync-dot.ok{background:var(--success)}
+.sync-dot.err{background:var(--danger)}
 </style>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
+
+<!-- ═══════════════ LOGIN OVERLAY ═══════════════ -->
+<div id="login-overlay">
+  <div class="login-card">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="font-size:3rem;line-height:1;margin-bottom:10px">🚗</div>
+      <h1 style="font-size:1.25rem;font-weight:800;color:var(--gray-900)">Ôn Thi Bằng Lái Xe</h1>
+      <p style="font-size:.82rem;color:var(--gray-500);margin-top:4px">Hạng B · 600 câu lý thuyết</p>
+    </div>
+    <p style="font-size:.82rem;font-weight:700;color:var(--gray-700);margin-bottom:10px">Chọn tài khoản</p>
+    <div id="user-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px"></div>
+    <p style="font-size:.82rem;font-weight:700;color:var(--gray-700);margin-bottom:8px">Mã PIN</p>
+    <input id="pin-input" class="pin-input" type="password" inputmode="numeric"
+      maxlength="4" placeholder="● ● ● ●" autocomplete="off"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <p id="login-err" style="color:var(--danger);font-size:.8rem;margin-top:8px;min-height:20px"></p>
+    <button id="login-btn" onclick="doLogin()" style="
+      width:100%;margin-top:4px;background:var(--primary);color:#fff;border:none;
+      border-radius:10px;padding:14px;font-size:.95rem;font-weight:700;
+      cursor:pointer;transition:background .15s;font-family:inherit;
+    ">Đăng nhập</button>
+    <p id="login-loading" style="text-align:center;color:var(--gray-400);font-size:.85rem;margin-top:12px;display:none">
+      ⏳ Đang tải dữ liệu từ đám mây...
+    </p>
+  </div>
+</div>
 
 <!-- ═══════════════ SIDEBAR (desktop) ═══════════════ -->
 <aside class="sidebar" id="sidebar">
@@ -642,9 +709,18 @@ body{
     </button>
   </nav>
   <div class="sb-stats" id="sb-stats">
+    <div class="sb-stat-row" style="padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid var(--gray-100)">
+      <span style="font-weight:600;color:var(--gray-900)">
+        <span class="sync-dot" id="sync-dot"></span><span id="sb-username">—</span>
+      </span>
+      <button onclick="doLogout()" style="background:none;border:none;font-size:.75rem;color:var(--gray-400);cursor:pointer;padding:0;font-family:inherit">Đăng xuất</button>
+    </div>
     <div class="sb-stat-row"><span>Đã học</span><span class="sb-stat-val" id="sb-answered">0/600</span></div>
     <div class="sb-stat-row"><span>Tỉ lệ đúng</span><span class="sb-stat-val" id="sb-accuracy">—</span></div>
     <div class="sb-stat-row"><span>Câu sai</span><span class="sb-stat-val" id="sb-wrong">0</span></div>
+    <div id="sync-status-row" style="margin-top:6px;font-size:.72rem;color:var(--gray-400)">
+      <span id="sync-status-text">—</span>
+    </div>
   </div>
 </aside>
 
@@ -930,12 +1006,41 @@ const EXAM_TIME = 19 * 60;
 const LABELS = ['A','B','C','D'];
 
 // ═══════════════════════════════════
-// STORAGE HELPERS
+// ═══════════════════════════════════
+// FIREBASE & ACCOUNTS
+// ═══════════════════════════════════
+
+// ⚙️ Đổi name/pin tùy ý, giữ nguyên id
+const ACCOUNTS = [
+  { id:'thuong', name:'Thương',       pin:'1234', color:'#1a56db' },
+  { id:'user2',  name:'Người dùng 2', pin:'1234', color:'#057a55' },
+  { id:'user3',  name:'Người dùng 3', pin:'1234', color:'#7c3aed' },
+  { id:'user4',  name:'Người dùng 4', pin:'1234', color:'#dc2626' },
+  { id:'user5',  name:'Người dùng 5', pin:'1234', color:'#d97706' },
+];
+
+firebase.initializeApp({
+  apiKey:"AIzaSyDav190ILcQyzQ2aGq3k5aMJwZjxs2LPfw",
+  authDomain:"blx-hang.firebaseapp.com",
+  projectId:"blx-hang",
+  storageBucket:"blx-hang.firebasestorage.app",
+  messagingSenderId:"818786541191",
+  appId:"1:818786541191:web:bfe851f9fadf73a80da222"
+});
+const db = firebase.firestore();
+
+let _uid       = localStorage.getItem('auth_user') || '';
+let _syncTimer = null;
+let _syncLock  = false;
+function lsKey(k) { return _uid ? `${_uid}__${k}` : k; }
+
+// ═══════════════════════════════════
+// STORAGE HELPERS (namespaced per user)
 // ═══════════════════════════════════
 const LS = {
-  get: k => { try { return JSON.parse(localStorage.getItem(k)) } catch { return null } },
-  set: (k,v) => localStorage.setItem(k, JSON.stringify(v)),
-  del: k => localStorage.removeItem(k)
+  get: k => { try { return JSON.parse(localStorage.getItem(lsKey(k))) } catch { return null } },
+  set: (k,v) => { localStorage.setItem(lsKey(k), JSON.stringify(v)); if (!_syncLock) debouncedSync(); },
+  del: k => localStorage.removeItem(lsKey(k))
 };
 const getStats      = () => LS.get('q_stats') || {};
 const getBookmarks  = () => LS.get('bookmarks') || [];
@@ -1630,6 +1735,135 @@ function quickViewQ(qid) {
 }
 
 // ═══════════════════════════════════
+// FIREBASE SYNC
+// ═══════════════════════════════════
+function setSyncStatus(s) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-status-text');
+  if (dot) { dot.className = 'sync-dot'; if (s !== 'idle') dot.classList.add(s); }
+  if (txt) txt.textContent =
+    s === 'syncing' ? '⏳ Đang đồng bộ...' :
+    s === 'ok'      ? '☁ Đã lưu ' + new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) :
+    s === 'err'     ? '⚠️ Lỗi kết nối' : '—';
+}
+
+function debouncedSync() {
+  if (!_uid) return;
+  if (_syncTimer) clearTimeout(_syncTimer);
+  setSyncStatus('syncing');
+  _syncTimer = setTimeout(syncToFirestore, 2000);
+}
+
+async function syncToFirestore() {
+  if (!_uid) return;
+  try {
+    await db.collection('users').doc(_uid).set({
+      q_stats:      getStats(),
+      bookmarks:    getBookmarks(),
+      wrong_all:    getWrong(),
+      q_notes:      getNotes(),
+      set_results:  getSetResults(),
+      sessions:     getSessions(),
+      theory_notes: LS.get('theory_notes') || '',
+      updatedAt:    new Date().toISOString(),
+    }, { merge: true });
+    setSyncStatus('ok');
+  } catch(e) { setSyncStatus('err'); }
+}
+
+async function loadFromFirestore() {
+  if (!_uid) return;
+  try {
+    const snap = await db.collection('users').doc(_uid).get();
+    if (!snap.exists) return;
+    _syncLock = true;
+    const d = snap.data();
+    ['q_stats','bookmarks','wrong_all','q_notes','set_results','sessions','theory_notes']
+      .forEach(k => { if (d[k] !== undefined) localStorage.setItem(lsKey(k), JSON.stringify(d[k])); });
+    _syncLock = false;
+    setSyncStatus('ok');
+  } catch(e) { _syncLock = false; setSyncStatus('err'); }
+}
+
+// ═══════════════════════════════════
+// LOGIN / LOGOUT
+// ═══════════════════════════════════
+function renderUserGrid() {
+  const grid = document.getElementById('user-grid');
+  if (!grid) return;
+  grid.innerHTML = ACCOUNTS.map(u =>
+    `<button class="user-btn" id="ubtn-${u.id}" onclick="selectUser('${u.id}')">
+      <div class="user-avatar" style="background:${u.color}22;color:${u.color}">👤</div>
+      ${u.name}
+    </button>`
+  ).join('');
+}
+
+let _selectedUser = null;
+function selectUser(uid) {
+  _selectedUser = uid;
+  const acc = ACCOUNTS.find(a => a.id === uid);
+  document.querySelectorAll('.user-btn').forEach(b => {
+    b.style.cssText = 'border-color:var(--gray-200);background:#fff;color:var(--gray-700)';
+  });
+  const btn = document.getElementById(`ubtn-${uid}`);
+  if (btn && acc) {
+    btn.style.cssText = `border-color:${acc.color};background:${acc.color};color:#fff`;
+  }
+  document.getElementById('pin-input').focus();
+}
+
+async function doLogin() {
+  const errEl  = document.getElementById('login-err');
+  const loadEl = document.getElementById('login-loading');
+  const btn    = document.getElementById('login-btn');
+  const pin    = document.getElementById('pin-input').value.trim();
+  errEl.textContent = '';
+
+  if (!_selectedUser) { errEl.textContent = '❌ Vui lòng chọn tài khoản'; return; }
+  const acc = ACCOUNTS.find(a => a.id === _selectedUser);
+  if (!acc || acc.pin !== pin) {
+    errEl.textContent = '❌ Mã PIN không đúng';
+    document.getElementById('pin-input').value = '';
+    document.getElementById('pin-input').focus();
+    return;
+  }
+
+  _uid = acc.id;
+  localStorage.setItem('auth_user', _uid);
+  btn.disabled = true;
+  loadEl.style.display = 'block';
+
+  await loadFromFirestore();
+
+  loadEl.style.display = 'none';
+  btn.disabled = false;
+  document.getElementById('login-overlay').style.display = 'none';
+
+  const sbEl = document.getElementById('sb-username');
+  if (sbEl) sbEl.textContent = acc.name;
+  renderHome();
+  updateSidebarStats();
+}
+
+function doLogout() {
+  if (_syncTimer) { clearTimeout(_syncTimer); syncToFirestore(); }
+  _uid = '';
+  localStorage.removeItem('auth_user');
+  _selectedUser = null;
+  document.getElementById('login-overlay').style.display = 'flex';
+  document.getElementById('pin-input').value = '';
+  document.getElementById('login-err').textContent = '';
+  document.getElementById('login-loading').style.display = 'none';
+  document.querySelectorAll('.user-btn').forEach(b => {
+    b.style.cssText = 'border-color:var(--gray-200);background:#fff;color:var(--gray-700)';
+  });
+  const sbEl = document.getElementById('sb-username');
+  if (sbEl) sbEl.textContent = '—';
+  setSyncStatus('idle');
+}
+
+// ═══════════════════════════════════
 // RESET
 // ═══════════════════════════════════
 function confirmReset() { document.getElementById('modal-reset').classList.add('show'); }
@@ -1637,6 +1871,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('show'); 
 function doReset() {
   ['q_stats','wrong_all','q_notes','bookmarks','set_results','sessions'].forEach(k => LS.del(k));
   closeModal('modal-reset');
+  syncToFirestore(); // push cleared data to cloud
   renderHome();
   updateSidebarStats();
 }
@@ -1690,8 +1925,24 @@ function applyUpdate() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  renderHome();
-  updateSidebarStats();
+  renderUserGrid();
+
+  const savedAcc = ACCOUNTS.find(a => a.id === _uid);
+  if (savedAcc) {
+    // Already logged in — hide overlay, show app with cached data
+    document.getElementById('login-overlay').style.display = 'none';
+    const sbEl = document.getElementById('sb-username');
+    if (sbEl) sbEl.textContent = savedAcc.name;
+    renderHome();
+    updateSidebarStats();
+    // Refresh from Firestore silently in background
+    loadFromFirestore().then(() => { renderHome(); updateSidebarStats(); });
+  } else {
+    // Not logged in — show login overlay
+    _uid = '';
+    renderHome();
+    updateSidebarStats();
+  }
 
   if (!('serviceWorker' in navigator)) return;
 
