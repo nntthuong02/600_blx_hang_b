@@ -787,6 +787,11 @@ body{
       <div class="result-verdict" id="res-verdict">ĐẠT</div>
       <div class="result-meta" id="res-meta"></div>
     </div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+      <button class="btn btn-primary" id="btn-practice-wrong" onclick="practiceWrong()" style="display:none">🔁 Luyện câu sai</button>
+      <button class="btn btn-outline" onclick="retryExam()">🔄 Thi lại</button>
+      <button class="btn btn-outline" onclick="showScreen('screen-home')">🏠 Về trang chủ</button>
+    </div>
     <div class="card">
       <div style="font-weight:700;margin-bottom:10px">Bản đồ câu hỏi</div>
       <div class="result-grid" id="result-grid"></div>
@@ -794,11 +799,6 @@ body{
     <div class="card" id="wrong-summary" style="display:none">
       <div style="font-weight:700;margin-bottom:10px">Câu trả lời sai</div>
       <div id="wrong-list"></div>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <button class="btn btn-primary" id="btn-practice-wrong" onclick="practiceWrong()" style="display:none">🔁 Luyện câu sai</button>
-      <button class="btn btn-outline" onclick="retryExam()">🔄 Thi lại</button>
-      <button class="btn btn-outline" onclick="showScreen('screen-home')">🏠 Về trang chủ</button>
     </div>
   </div>
 </div>
