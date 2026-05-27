@@ -1891,12 +1891,25 @@ window.addEventListener('scroll', () => {
 document.addEventListener('keydown', e => {
   if (state.currentScreen !== 'screen-exam') return;
   if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
-  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')    navQuestion(-1);
-  if (e.key === 'ArrowRight' || e.key === 'ArrowDown')  navQuestion(1);
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+
+  // Chuyển câu: mũi tên trái/phải (lên/xuống cũng được). preventDefault để
+  // trang không bị cuộn theo khi điều hướng.
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { e.preventDefault(); navQuestion(-1); return; }
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); navQuestion(1);  return; }
+
+  // Trả lời nhanh: phím 1–4 ứng với đáp án A–D. Chỉ trả lời câu chưa làm;
+  // câu đã trả lời được giữ khoá (chế độ luyện tập).
   if (e.key >= '1' && e.key <= '4') {
+    e.preventDefault();
     const ex = state.currentExam;
     const idx = state.currentQuestion;
-    if (ex && ex.answers[idx] === undefined) chooseAnswer(parseInt(e.key)-1);
+    if (!ex) return;
+    const q = ex.questions[idx];
+    const optionIdx = parseInt(e.key) - 1;
+    if (ex.answers[idx] !== undefined) return;        // đã trả lời → giữ khoá
+    if (optionIdx >= q.answers.length) return;         // câu không có đáp án đó
+    chooseAnswer(optionIdx);
   }
 });
 
