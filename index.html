@@ -1225,9 +1225,6 @@ function chooseAnswer(answerIdx) {
   const isCorrect = answerIdx === q.correct;
   saveAnswer(q.id, isCorrect);
   renderQuestion();
-  if (isCorrect && idx < ex.questions.length-1) {
-    setTimeout(() => navQuestion(1), 1000);
-  }
 }
 
 // ═══════════════════════════════════
