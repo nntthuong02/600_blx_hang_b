@@ -881,6 +881,29 @@ body{
 
 <button class="scroll-to-top" id="scroll-top" onclick="scrollToTop()">↑</button>
 
+<!-- PWA update toast -->
+<div id="update-toast" style="
+  display:none;position:fixed;bottom:calc(var(--bnav-h) + 12px);left:50%;
+  transform:translateX(-50%);z-index:9999;
+  background:#1e293b;color:#fff;
+  padding:12px 18px;border-radius:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  display:none;align-items:center;gap:12px;
+  font-size:.88rem;font-weight:500;
+  white-space:nowrap;max-width:calc(100vw - 32px);
+">
+  <span>🔄 Có phiên bản mới</span>
+  <button onclick="applyUpdate()" style="
+    background:#1a56db;color:#fff;border:none;
+    padding:6px 14px;border-radius:8px;
+    font-size:.82rem;font-weight:700;cursor:pointer;
+  ">Cập nhật</button>
+  <button onclick="dismissUpdate()" style="
+    background:none;border:none;color:#94a3b8;
+    font-size:1rem;cursor:pointer;padding:0 4px;line-height:1;
+  ">✕</button>
+</div>
+
 <script>
 // ═══════════════════════════════════
 // DATA
@@ -1645,13 +1668,55 @@ document.addEventListener('keydown', e => {
 // ═══════════════════════════════════
 // INIT
 // ═══════════════════════════════════
+// ═══════════════════════════════════
+// PWA UPDATE
+// ═══════════════════════════════════
+let _waitingSW = null;
+
+function showUpdateToast() {
+  const t = document.getElementById('update-toast');
+  if (t) t.style.display = 'flex';
+}
+function dismissUpdate() {
+  const t = document.getElementById('update-toast');
+  if (t) t.style.display = 'none';
+}
+function applyUpdate() {
+  if (_waitingSW) {
+    _waitingSW.postMessage('SKIP_WAITING');
+  } else {
+    location.reload();
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   renderHome();
   updateSidebarStats();
-  // Register service worker for PWA / offline support
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  }
+
+  if (!('serviceWorker' in navigator)) return;
+
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    // New SW waiting right after first install — no toast needed
+    if (reg.waiting && navigator.serviceWorker.controller) {
+      _waitingSW = reg.waiting;
+      showUpdateToast();
+    }
+    // SW found while page is open
+    reg.addEventListener('updatefound', () => {
+      const sw = reg.installing;
+      sw.addEventListener('statechange', () => {
+        if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+          _waitingSW = sw;
+          showUpdateToast();
+        }
+      });
+    });
+  }).catch(() => {});
+
+  // When SW activates (after skipWaiting), reload to get fresh page
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    location.reload();
+  });
 });
 </script>
 </body>
