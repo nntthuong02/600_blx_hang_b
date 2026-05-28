@@ -1213,6 +1213,10 @@ function renderSets() {
 // START EXAM
 // ═══════════════════════════════════
 function startExam(mode, setNo) {
+  // Dừng timer của bài thi trước (nếu rời bài cũ mà không nộp/back).
+  if (state.currentExam && state.currentExam.timerInterval) {
+    clearInterval(state.currentExam.timerInterval);
+  }
   let questions;
   if (mode === 'random') {
     questions = shuffle([...QUESTIONS]).slice(0, 30);
@@ -1287,6 +1291,10 @@ function startTimer() {
   if (ex.timerInterval) clearInterval(ex.timerInterval);
   const el = document.getElementById('exam-timer');
   function tick() {
+    // Đã thoát bài / bắt đầu bài khác → tự dừng, KHÔNG nộp nhầm bài hiện tại.
+    if (state.currentExam !== ex || state.currentScreen !== 'screen-exam') {
+      clearInterval(ex.timerInterval); return;
+    }
     ex.timerSeconds--;
     const m = Math.floor(ex.timerSeconds/60);
     const s = ex.timerSeconds%60;
