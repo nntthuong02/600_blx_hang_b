@@ -422,6 +422,11 @@ body{
 .q-nav-btn.answered-correct{border-color:var(--success);background:var(--success-light);color:var(--success-text)}
 .q-nav-btn.answered-wrong{border-color:var(--danger);background:var(--danger-light);color:var(--danger-text)}
 .q-nav-btn.bookmarked{border-color:#f59e0b;background:#fef3c7}
+.q-nav-btn.critical{box-shadow:0 0 0 2px #eab308}   /* viền vàng câu điểm liệt, luôn hiện */
+.critical-tag{
+  display:inline-block;margin:2px 0 12px;padding:4px 12px;border-radius:999px;
+  background:#fef3c7;color:#92400e;font-size:.8rem;font-weight:700;border:1px solid #eab308;
+}
 
 /* ── Exam nav actions ── */
 .exam-actions{
@@ -1354,6 +1359,7 @@ function renderQuestion() {
       </div>
       <div class="question-badge">Câu ${q.id} · ${CHAPTER_NAMES[q.chapter]||''}</div>
       <div class="question-text">${q.question}</div>
+      ${CRITICAL_IDS.has(q.id) ? '<div class="critical-tag">⚠️ Câu điểm liệt</div>' : ''}
       ${imgHtml}
       <div class="answers">${answersHtml}</div>
       ${expHtml}
@@ -1388,7 +1394,9 @@ function renderSideNav() {
     if (i === state.currentQuestion) cls += ' current';
     else if (ans !== undefined) cls += ans === q.correct ? ' answered-correct' : ' answered-wrong';
     else if (bookmarks.includes(q.id)) cls += ' bookmarked';
-    return `<button class="${cls}" onclick="jumpToQ(${i})" title="Câu ${i+1}">${i+1}</button>`;
+    if (CRITICAL_IDS.has(q.id)) cls += ' critical';   // viền vàng câu điểm liệt
+    const tip = CRITICAL_IDS.has(q.id) ? ` (điểm liệt)` : '';
+    return `<button class="${cls}" onclick="jumpToQ(${i})" title="Câu ${i+1}${tip}">${i+1}</button>`;
   }).join('');
 }
 
@@ -1468,6 +1476,7 @@ function showQNav() {
     if (i === state.currentQuestion) cls += ' current';
     else if (ans !== undefined) cls += ans === q.correct ? ' answered-correct' : ' answered-wrong';
     else if (bookmarks.includes(q.id)) cls += ' bookmarked';
+    if (CRITICAL_IDS.has(q.id)) cls += ' critical';
     return `<button class="${cls}" onclick="jumpToQ(${i});overlay.remove()">${i+1}</button>`;
   }).join('');
 
@@ -1486,6 +1495,7 @@ function showQNav() {
       <span style="color:var(--danger)">■ Sai</span>
       <span style="color:#92400e">■ Đánh dấu</span>
       <span style="color:var(--primary)">■ Đang xem</span>
+      <span style="color:#a16207">▢ Điểm liệt (viền vàng)</span>
     </div>
     <div class="qnav-modal-grid">${btns}</div>
   </div>`;
