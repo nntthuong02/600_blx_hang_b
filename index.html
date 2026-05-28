@@ -422,7 +422,16 @@ body{
 .q-nav-btn.answered-correct{border-color:var(--success);background:var(--success-light);color:var(--success-text)}
 .q-nav-btn.answered-wrong{border-color:var(--danger);background:var(--danger-light);color:var(--danger-text)}
 .q-nav-btn.bookmarked{border-color:#f59e0b;background:#fef3c7}
-.q-nav-btn.critical{box-shadow:0 0 0 2px #eab308}   /* viền vàng câu điểm liệt, luôn hiện */
+/* viền vàng câu điểm liệt — luôn hiện kể cả khi đè state khác */
+.q-nav-btn.critical{
+  border-color:#eab308;
+  box-shadow:0 0 0 2px #eab308;
+  background:#fefce8;
+}
+.q-nav-btn.critical.current{background:var(--primary-light);color:var(--primary)}
+.q-nav-btn.critical.answered-correct{background:var(--success-light);color:var(--success-text)}
+.q-nav-btn.critical.answered-wrong{background:var(--danger-light);color:var(--danger-text)}
+.q-nav-btn.critical.bookmarked{background:#fef3c7}
 .critical-tag{
   display:inline-block;margin:2px 0 12px;padding:4px 12px;border-radius:999px;
   background:#fef3c7;color:#92400e;font-size:.8rem;font-weight:700;border:1px solid #eab308;
@@ -476,6 +485,7 @@ body{
 .rg-correct{background:var(--success-light);color:var(--success-text);border-color:var(--success)}
 .rg-wrong{background:var(--danger-light);color:var(--danger-text);border-color:var(--danger)}
 .rg-skip{background:var(--gray-100);color:var(--gray-400);border-color:var(--gray-200)}
+.rg-item.critical{box-shadow:0 0 0 2px #eab308}
 
 /* ══════════════════════════════════════════════
    STUDY SCREEN
@@ -1584,8 +1594,10 @@ function renderResults() {
   const ex = state.lastExam;
   document.getElementById('result-grid').innerHTML = ex.questions.map((q,i) => {
     const ans = ex.answers[i];
-    const cls = ans===undefined ? 'rg-skip' : ans===q.correct ? 'rg-correct' : 'rg-wrong';
-    return `<div class="${cls} rg-item" onclick="reviewQ(${i})" title="Câu ${i+1}: ${q.question.substring(0,40)}...">${i+1}</div>`;
+    let cls = ans===undefined ? 'rg-skip' : ans===q.correct ? 'rg-correct' : 'rg-wrong';
+    if (CRITICAL_IDS.has(q.id)) cls += ' critical';
+    const tip = CRITICAL_IDS.has(q.id) ? ' (điểm liệt)' : '';
+    return `<div class="${cls} rg-item" onclick="reviewQ(${i})" title="Câu ${i+1}${tip}: ${q.question.substring(0,40)}...">${i+1}</div>`;
   }).join('');
 
   const wrongSummary = document.getElementById('wrong-summary');
