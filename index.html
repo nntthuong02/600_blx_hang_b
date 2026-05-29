@@ -509,16 +509,18 @@ body{
   background:#fff;border-bottom:1px solid var(--gray-200);
   padding:10px 16px;display:flex;align-items:center;gap:8px;
 }
+.study-search-wrap{position:relative;flex:1;display:flex;align-items:center}
 .study-search-input{
-  flex:1;border:1.5px solid var(--gray-200);border-radius:10px;
+  width:100%;border:1.5px solid var(--gray-200);border-radius:10px;
   padding:9px 36px 9px 36px;font-size:.9rem;font-family:inherit;
   background:#fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.3-4.3'/></svg>") 10px center/16px no-repeat;
   outline:none;transition:border-color .15s;
 }
 .study-search-input:focus{border-color:var(--primary)}
 .study-search-clear{
-  position:absolute;right:24px;background:none;border:none;
-  font-size:1.1rem;color:var(--gray-400);cursor:pointer;padding:4px 8px;
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  background:none;border:none;line-height:1;
+  font-size:1.2rem;color:var(--gray-400);cursor:pointer;padding:4px 8px;
   display:none;
 }
 .study-search-clear.show{display:block}
@@ -937,13 +939,15 @@ body{
     <div class="header-title">Duyệt Câu Hỏi</div>
   </div>
   <div class="study-filters" id="study-filters"></div>
-  <div class="study-search" style="position:relative">
-    <input type="text" id="study-search-input" class="study-search-input"
-           placeholder="Tìm câu hỏi, đáp án, giải thích..." autocomplete="off"
-           oninput="onStudySearch(this.value)">
-    <button class="study-search-clear" id="study-search-clear"
-            onclick="onStudySearch('');document.getElementById('study-search-input').value=''"
-            title="Xóa">×</button>
+  <div class="study-search">
+    <div class="study-search-wrap">
+      <input type="text" id="study-search-input" class="study-search-input"
+             placeholder="Tìm câu hỏi, đáp án, giải thích..." autocomplete="off"
+             oninput="onStudySearch(this.value)">
+      <button class="study-search-clear" id="study-search-clear"
+              onclick="onStudySearch('');document.getElementById('study-search-input').value=''"
+              title="Xóa">×</button>
+    </div>
     <span class="study-search-count" id="study-search-count"></span>
   </div>
   <div class="study-scroll">
