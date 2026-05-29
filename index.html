@@ -504,6 +504,28 @@ body{
 }
 .filter-chip.active{border-color:var(--primary);background:var(--primary-light);color:var(--primary)}
 
+.study-search{
+  position:sticky;top:51px;z-index:9;
+  background:#fff;border-bottom:1px solid var(--gray-200);
+  padding:10px 16px;display:flex;align-items:center;gap:8px;
+}
+.study-search-input{
+  flex:1;border:1.5px solid var(--gray-200);border-radius:10px;
+  padding:9px 36px 9px 36px;font-size:.9rem;font-family:inherit;
+  background:#fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.3-4.3'/></svg>") 10px center/16px no-repeat;
+  outline:none;transition:border-color .15s;
+}
+.study-search-input:focus{border-color:var(--primary)}
+.study-search-clear{
+  position:absolute;right:24px;background:none;border:none;
+  font-size:1.1rem;color:var(--gray-400);cursor:pointer;padding:4px 8px;
+  display:none;
+}
+.study-search-clear.show{display:block}
+.study-search-count{font-size:.78rem;color:var(--gray-500);white-space:nowrap}
+.study-list mark{background:#fef3c7;color:#92400e;padding:0 2px;border-radius:3px}
+.study-empty{text-align:center;padding:40px 16px;color:var(--gray-400);font-size:.9rem}
+
 .study-scroll{flex:1;overflow-y:auto}
 .study-list{
   padding:16px;max-width:900px;margin:0 auto;
@@ -915,6 +937,15 @@ body{
     <div class="header-title">Duyệt Câu Hỏi</div>
   </div>
   <div class="study-filters" id="study-filters"></div>
+  <div class="study-search" style="position:relative">
+    <input type="text" id="study-search-input" class="study-search-input"
+           placeholder="Tìm câu hỏi, đáp án, giải thích..." autocomplete="off"
+           oninput="onStudySearch(this.value)">
+    <button class="study-search-clear" id="study-search-clear"
+            onclick="onStudySearch('');document.getElementById('study-search-input').value=''"
+            title="Xóa">×</button>
+    <span class="study-search-count" id="study-search-count"></span>
+  </div>
   <div class="study-scroll">
     <div class="study-list" id="study-list"></div>
   </div>
@@ -1104,6 +1135,7 @@ let state = {
   currentQuestion: 0,
   lastExam: null,
   studyChapter: 0,
+  studyQuery: '',
   currentScreen: 'screen-home',
 };
 
@@ -1642,42 +1674,100 @@ function practiceWrongFromNotes() { startExam('wrong'); }
 // ═══════════════════════════════════
 // STUDY MODE
 // ═══════════════════════════════════
+function normalizeForSearch(s) {
+  return (s||'').toString().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/đ/g,'d');
+}
+function escapeHtml(s) {
+  return (s||'').toString()
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function highlightText(text, query) {
+  const safe = escapeHtml(text);
+  if (!query) return safe;
+  const nq = normalizeForSearch(query);
+  if (!nq) return safe;
+  // Build index map from normalized → original positions
+  const nText = normalizeForSearch(text);
+  let result = '';
+  let i = 0;
+  while (i < text.length) {
+    const idx = nText.indexOf(nq, i);
+    if (idx === -1) { result += escapeHtml(text.slice(i)); break; }
+    // Note: normalize keeps 1:1 char count for our chars (lowercase+strip accents)
+    result += escapeHtml(text.slice(i, idx));
+    result += '<mark>' + escapeHtml(text.slice(idx, idx + nq.length)) + '</mark>';
+    i = idx + nq.length;
+  }
+  return result;
+}
+
+function onStudySearch(value) {
+  state.studyQuery = value;
+  document.getElementById('study-search-clear').classList.toggle('show', !!value);
+  renderStudy();
+}
+
 function renderStudy(chapter) {
   if (chapter !== undefined) state.studyChapter = chapter;
   const ch = state.studyChapter;
-  const filtered = ch===0 ? QUESTIONS : QUESTIONS.filter(q=>q.chapter===ch);
+  const q = state.studyQuery || '';
+  const nq = normalizeForSearch(q);
+  const byChapter = ch===0 ? QUESTIONS : QUESTIONS.filter(qq=>qq.chapter===ch);
+  const filtered = nq
+    ? byChapter.filter(qq => {
+        if (String(qq.id) === q.trim()) return true;
+        const hay = normalizeForSearch(
+          qq.question + ' ' + qq.answers.join(' ') + ' ' + (qq.explanation||'')
+        );
+        return hay.includes(nq);
+      })
+    : byChapter;
   const stats = getStats();
   const bookmarks = getBookmarks();
 
   // Filters
   document.getElementById('study-filters').innerHTML =
     [0,1,2,3,4,5,6].map(c => {
-      const count = c===0 ? QUESTIONS.length : QUESTIONS.filter(q=>q.chapter===c).length;
+      const count = c===0 ? QUESTIONS.length : QUESTIONS.filter(qq=>qq.chapter===c).length;
       const label = c===0 ? `Tất cả (${count})` : `Ch.${c} (${count})`;
       return `<button class="filter-chip ${ch===c?'active':''}" onclick="renderStudy(${c})">${label}</button>`;
     }).join('');
 
-  document.getElementById('study-list').innerHTML = filtered.map(q => {
-    const stat = stats[q.id];
+  // Search count
+  const countEl = document.getElementById('study-search-count');
+  if (countEl) countEl.textContent = nq ? `${filtered.length} kết quả` : '';
+
+  const listEl = document.getElementById('study-list');
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div class="study-empty">Không tìm thấy câu hỏi nào khớp với "<b>${escapeHtml(q)}</b>".</div>`;
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(qq => {
+    const stat = stats[qq.id];
     const done = stat ? (stat.c>0 ? '<span style="color:var(--success)">✓</span>' : '<span style="color:var(--danger)">✗</span>') : '';
-    const bm = bookmarks.includes(q.id) ? '<span>⭐</span>' : '';
-    const imgHtml = q.image
-      ? `<img src="${q.image}" style="width:100%;max-width:360px;border-radius:8px;margin:8px 0;border:1px solid var(--gray-200)" loading="lazy">`
+    const bm = bookmarks.includes(qq.id) ? '<span>⭐</span>' : '';
+    const crit = CRITICAL_IDS.has(qq.id) ? '<span class="critical-tag" style="margin:0;padding:2px 8px;font-size:.7rem">⚠️ Điểm liệt</span>' : '';
+    const imgHtml = qq.image
+      ? `<img src="${qq.image}" style="width:100%;max-width:360px;border-radius:8px;margin:8px 0;border:1px solid var(--gray-200)" loading="lazy">`
       : '';
-    const answersHtml = q.answers.map((a,ai) =>
-      `<div style="padding:8px 12px;border-radius:8px;margin-top:6px;border:1.5px solid ${ai===q.correct?'var(--success)':'var(--gray-200)'};background:${ai===q.correct?'var(--success-light)':'#fff'};color:${ai===q.correct?'var(--success-text)':'var(--gray-700)'};font-size:.85rem">
-        <b>${LABELS[ai]}.</b> ${a}${ai===q.correct?' ✓':''}
+    const answersHtml = qq.answers.map((a,ai) =>
+      `<div style="padding:8px 12px;border-radius:8px;margin-top:6px;border:1.5px solid ${ai===qq.correct?'var(--success)':'var(--gray-200)'};background:${ai===qq.correct?'var(--success-light)':'#fff'};color:${ai===qq.correct?'var(--success-text)':'var(--gray-700)'};font-size:.85rem">
+        <b>${LABELS[ai]}.</b> ${highlightText(a, q)}${ai===qq.correct?' ✓':''}
       </div>`
     ).join('');
     return `<div class="card" style="margin:0">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span style="font-size:.75rem;color:var(--gray-400)">Câu ${q.id} · ${CHAPTER_NAMES[q.chapter]||''}</span>
-        <span style="display:flex;gap:4px">${done}${bm}</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap">
+        <span style="font-size:.75rem;color:var(--gray-400)">Câu ${qq.id} · ${CHAPTER_NAMES[qq.chapter]||''}</span>
+        <span style="display:flex;gap:4px;align-items:center">${crit}${done}${bm}</span>
       </div>
-      <div style="font-weight:600;font-size:.92rem;line-height:1.6;margin-bottom:8px">${q.question}</div>
+      <div style="font-weight:600;font-size:.92rem;line-height:1.6;margin-bottom:8px">${highlightText(qq.question, q)}</div>
       ${imgHtml}
       ${answersHtml}
-      ${q.explanation?`<div class="explanation-box show" style="margin-top:10px"><div class="explanation-title">💡 Giải thích</div>${q.explanation}</div>`:''}
+      ${qq.explanation?`<div class="explanation-box show" style="margin-top:10px"><div class="explanation-title">💡 Giải thích</div>${highlightText(qq.explanation, q)}</div>`:''}
     </div>`;
   }).join('');
 }
