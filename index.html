@@ -1245,7 +1245,8 @@ function renderSets() {
     if (res) {
       const pass = res.score >= PASS_SCORE;
       badge = `<span class="set-badge ${pass?'badge-pass':'badge-fail'}">${pass?'✓ Đạt':'✗ Trượt'}</span>`;
-      scoreHtml = `<div class="set-score" style="color:${pass?'var(--success)':'var(--danger)'};font-weight:600">${res.score}/30 · ${res.date}</div>`;
+      const timeStr = res.elapsed != null ? ` · ${Math.floor(res.elapsed/60)}:${String(res.elapsed%60).padStart(2,'0')}` : '';
+      scoreHtml = `<div class="set-score" style="color:${pass?'var(--success)':'var(--danger)'};font-weight:600">${res.score}/30 · ${res.date}${timeStr}</div>`;
     }
     html += `<div class="set-card" onclick="startExam('set',${i})">
       <div class="set-title">Đề ${i}</div>
@@ -1596,7 +1597,7 @@ function finishExam(timeUp) {
 
   if (ex.mode === 'set' && ex.setNo) {
     const sr = getSetResults();
-    sr[ex.setNo] = {score:correct, total, date:new Date().toLocaleDateString('vi-VN'), pass};
+    sr[ex.setNo] = {score:correct, total, date:new Date().toLocaleDateString('vi-VN'), pass, elapsed};
     LS.set('set_results', sr);
   }
   state.lastExam = {...ex, correct, total, wrongList, elapsed, pass, criticalWrong};
